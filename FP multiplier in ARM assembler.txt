@@ -1,0 +1,114 @@
+.data
+	f1:
+		.float 13.857
+	f2:
+		.float 8.675
+	result:
+		.float 0.0
+.text
+	global start
+	
+	start: 
+			mov r1, f1
+			mov r2, f1
+			mov r3, f1
+			mov r4, f2
+			mov r5, f2
+			mov r6, f2
+			
+			
+			;Extraction of the parts of the first float number 'f1'
+			
+			mov r1, r1 LSR #31 ;r1 holds the sign bit
+			
+			mov r2, r2 ROR #30
+			mov r2, r2 LSR #23 ;r2 holds the value of the exponent
+			
+			mov r3, r3 ROR #22
+			mov r3, r3 LSR #9  ;r3 holds the value of the mantissa
+			
+			
+			;Extraction of the parts of the first float number 'f2'
+			
+			mov r4, r4 LSR #31 ;r1 holds the sign bit
+			
+			mov r5, r5 ROR #30
+			mov r5, r5 LSR #23 ;r2 holds the value of the exponent
+			
+			mov r6, r6 ROR #22
+			mov r6, r6 LSR #9  ;r3 holds the value of the mantissa
+			
+			;
+			;Sum of the exponents (with biased notation)
+			;
+			
+			sum r2, r2, #127
+			sum r5, r5, #127
+			
+			sum r7, r2, r5
+			sub r7, r7, #127 ;r7 holds the value of the new exponent (we could optimize this by overwriting r2 or r5
+			
+			;
+			;Check if over/under flow has ocurred
+			;
+			
+			CMP r7, #255
+			BGE overflow
+			
+			CMP r7, #0
+			BLE underflow
+			
+			;
+			;Calculate the new Mantissa
+			;
+			
+			;As we are multiplying 2 24 bit numbers, the result will have 48 bits, the 12 most significant bits will be in r8
+			;	while the 32 least sig will be in r9. We need to get the 11 most sig bits of r9 and move them to r8, so we can build the new
+			;	23 bits Mantissa.
+			
+			UMULL r8, r9, r3, r6
+			mov r8, r8 ROR #21
+			
+			mov r9, r9 LSR #21
+			
+			ORR r8, r9 ;r8 holds the new Mantissa
+			
+			
+			
+			;
+			;Compute the new sign
+			;
+			
+			XOR r1, r4
+			
+			;
+			;Join the sign, the exponent and the Mantissa together
+			;
+			
+			;sign is in r1, the exponent is in r7 and the Mantissa is in r8
+			;The position of the bits of r7 needs to be adjusted to fit fine for the floating point standard
+			
+			mov r7, r7 ROR #24
+			
+			;The same applies to the sign located in r1
+			
+			mov r1, r1 ROR #1
+			
+			
+			;Now we can glue everything together
+			ORR r1, r7
+			ORR r1, r8
+			
+			mov r0, r1
+			
+			;The final result is in r0
+			
+			
+	overflow:
+			;Code to treat an overflow exception, in this case it will return the maximum number possible (all '1's)
+			mov r0, #FFFFFFFF
+			 
+	
+	underflow:
+			;Code to treat an underflow exception, in this case it will return 0
+			mov r0, #0
